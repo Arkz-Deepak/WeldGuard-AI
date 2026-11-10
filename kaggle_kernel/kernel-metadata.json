@@ -1,0 +1,16 @@
+{
+  "id": "deepark121/weldguard-convlstm-training",
+  "title": "WeldGuard ConvLSTM Training",
+  "code_file": "train_kaggle.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": "true",
+  "enable_gpu": "true",
+  "enable_tpu": "false",
+  "enable_internet": "true",
+  "dataset_sources": [
+    "deepark121/weldguard-welding-telemetry"
+  ],
+  "competition_sources": [],
+  "kernel_sources": []
+}

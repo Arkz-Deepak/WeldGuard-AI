@@ -1,0 +1,46 @@
+[{"stream_name":"stdout","time":12.100112527,"data":"======================================================================\n"}
+,{"stream_name":"stdout","time":12.100164848,"data":"WeldGuard-AI: Spatiotemporal ConvLSTM Training Engine\n"}
+,{"stream_name":"stdout","time":12.100170408,"data":"Device: cuda\n"}
+,{"stream_name":"stdout","time":12.147576737,"data":"GPU Name: Tesla T4\n"}
+,{"stream_name":"stdout","time":12.147613487,"data":"Allocated VRAM: 14.56 GB\n"}
+,{"stream_name":"stdout","time":12.147618705,"data":"======================================================================\n"}
+,{"stream_name":"stdout","time":12.147634902,"data":"[Debug] /kaggle/input top-level dirs: ['datasets']\n"}
+,{"stream_name":"stdout","time":12.151388813,"data":"  --\u003e Found data archive: /kaggle/input/datasets/deepark121/weldguard-welding-telemetry/manual_fabrication_compact.npz\n"}
+,{"stream_name":"stdout","time":12.151402454,"data":"  --\u003e Found data archive: /kaggle/input/datasets/deepark121/weldguard-welding-telemetry/robot_seam2_compact.npz\n"}
+,{"stream_name":"stdout","time":12.151407393,"data":"  --\u003e Found data archive: /kaggle/input/datasets/deepark121/weldguard-welding-telemetry/robot_seam1_compact.npz\n"}
+,{"stream_name":"stdout","time":12.151412811,"data":"Discovered data archives: ['/kaggle/input/datasets/deepark121/weldguard-welding-telemetry/manual_fabrication_compact.npz', '/kaggle/input/datasets/deepark121/weldguard-welding-telemetry/robot_seam2_compact.npz', '/kaggle/input/datasets/deepark121/weldguard-welding-telemetry/robot_seam1_compact.npz']\n"}
+,{"stream_name":"stdout","time":13.015529973,"data":"[Dataset] Indexed 888 sliding window samples across 3 archive(s)\n"}
+,{"stream_name":"stdout","time":13.047671361,"data":"Dataset split: 754 train samples, 134 validation samples.\n"}
+,{"stream_name":"stdout","time":24.516238355,"data":"Epoch [01/12] | Train MSE: 0.015762 | Val MSE: 0.010534 | Time: 5.5s\n"}
+,{"stream_name":"stdout","time":24.535895043,"data":"  --\u003e Saved new best checkpoint to convlstm_best.pth (Val Loss: 0.010534)\n"}
+,{"stream_name":"stdout","time":27.798762439,"data":"Epoch [02/12] | Train MSE: 0.006054 | Val MSE: 0.005243 | Time: 8.8s\n"}
+,{"stream_name":"stdout","time":27.803542466,"data":"  --\u003e Saved new best checkpoint to convlstm_best.pth (Val Loss: 0.005243)\n"}
+,{"stream_name":"stdout","time":31.168761615,"data":"Epoch [03/12] | Train MSE: 0.004966 | Val MSE: 0.003966 | Time: 12.1s\n"}
+,{"stream_name":"stdout","time":31.170855222,"data":"  --\u003e Saved new best checkpoint to convlstm_best.pth (Val Loss: 0.003966)\n"}
+,{"stream_name":"stdout","time":34.491303764,"data":"Epoch [04/12] | Train MSE: 0.004412 | Val MSE: 0.003646 | Time: 15.4s\n"}
+,{"stream_name":"stdout","time":34.496451359,"data":"  --\u003e Saved new best checkpoint to convlstm_best.pth (Val Loss: 0.003646)\n"}
+,{"stream_name":"stdout","time":37.857899643,"data":"Epoch [05/12] | Train MSE: 0.004183 | Val MSE: 0.003713 | Time: 18.8s\n"}
+,{"stream_name":"stdout","time":41.289522149,"data":"Epoch [06/12] | Train MSE: 0.003887 | Val MSE: 0.003415 | Time: 22.2s\n"}
+,{"stream_name":"stdout","time":41.294636176,"data":"  --\u003e Saved new best checkpoint to convlstm_best.pth (Val Loss: 0.003415)\n"}
+,{"stream_name":"stdout","time":44.674886205,"data":"Epoch [07/12] | Train MSE: 0.003761 | Val MSE: 0.003235 | Time: 25.6s\n"}
+,{"stream_name":"stdout","time":44.680036666,"data":"  --\u003e Saved new best checkpoint to convlstm_best.pth (Val Loss: 0.003235)\n"}
+,{"stream_name":"stdout","time":48.099613767,"data":"Epoch [08/12] | Train MSE: 0.003601 | Val MSE: 0.003076 | Time: 29.1s\n"}
+,{"stream_name":"stdout","time":48.104555911,"data":"  --\u003e Saved new best checkpoint to convlstm_best.pth (Val Loss: 0.003076)\n"}
+,{"stream_name":"stdout","time":51.512158682,"data":"Epoch [09/12] | Train MSE: 0.003565 | Val MSE: 0.003230 | Time: 32.5s\n"}
+,{"stream_name":"stdout","time":54.907681953,"data":"Epoch [10/12] | Train MSE: 0.003522 | Val MSE: 0.003003 | Time: 35.9s\n"}
+,{"stream_name":"stdout","time":54.912613386,"data":"  --\u003e Saved new best checkpoint to convlstm_best.pth (Val Loss: 0.003003)\n"}
+,{"stream_name":"stdout","time":58.35897867,"data":"Epoch [11/12] | Train MSE: 0.003429 | Val MSE: 0.002937 | Time: 39.3s\n"}
+,{"stream_name":"stdout","time":58.363814883,"data":"  --\u003e Saved new best checkpoint to convlstm_best.pth (Val Loss: 0.002937)\n"}
+,{"stream_name":"stdout","time":61.817997825,"data":"Epoch [12/12] | Train MSE: 0.003402 | Val MSE: 0.003003 | Time: 42.8s\n"}
+,{"stream_name":"stdout","time":62.147607622,"data":"\n"}
+,{"stream_name":"stdout","time":62.147633463,"data":"======================================================================\n"}
+,{"stream_name":"stdout","time":62.147638045,"data":"Training Complete! Best Val MSE: 0.002937\n"}
+,{"stream_name":"stdout","time":62.147659957,"data":"Saved artifacts in: /kaggle/working\n"}
+,{"stream_name":"stdout","time":62.14766381,"data":"======================================================================\n"}
+,{"stream_name":"stderr","time":68.808418686,"data":"/usr/local/lib/python3.13/dist-packages/mistune.py:435: SyntaxWarning: invalid escape sequence '\\|'\n"}
+,{"stream_name":"stderr","time":68.808445142,"data":"  cells[i][c] = re.sub('\\\\\\\\\\|', '|', cell)\n"}
+,{"stream_name":"stderr","time":69.104470144,"data":"/usr/local/lib/python3.13/dist-packages/nbconvert/filters/filter_links.py:36: SyntaxWarning: invalid escape sequence '\\_'\n"}
+,{"stream_name":"stderr","time":69.104493088,"data":"  text = re.sub(r'_', '\\_', text) # Escape underscores in display text\n"}
+,{"stream_name":"stderr","time":69.925758342,"data":"[NbConvertApp] Converting notebook __script__.ipynb to html\n"}
+,{"stream_name":"stderr","time":71.026030965,"data":"[NbConvertApp] Writing 336974 bytes to __results__.html\n"}
+]

@@ -1,0 +1,11 @@
+{
+  "timestamp": "2026-10-24 12:52:23",
+  "device": "cuda",
+  "gpu_name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+  "num_epochs": 12,
+  "batch_size": 16,
+  "best_val_loss": 0.024342,
+  "final_train_loss": 0.024771,
+  "final_val_loss": 0.024342,
+  "total_training_time_sec": 57.59
+}

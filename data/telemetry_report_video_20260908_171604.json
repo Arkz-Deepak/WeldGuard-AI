@@ -1,0 +1,39 @@
+{
+  "video_name": "video_20260908_171604.mp4",
+  "video_duration_sec": 134.23,
+  "video_duration_formatted": "2m 14s",
+  "total_frames": 4023,
+  "fps": 29.97,
+  "arc_telemetry": {
+    "total_arc_on_sec": 134.23,
+    "total_arc_on_formatted": "2m 14s",
+    "duty_cycle_pct": 100.0,
+    "arc_sessions_count": 1,
+    "arc_sessions": [
+      {
+        "session_id": 1,
+        "start_time_sec": 0.0,
+        "end_time_sec": 134.23,
+        "duration_sec": 134.23,
+        "start_frame": 0,
+        "end_frame": 4022
+      }
+    ]
+  },
+  "spatter_telemetry": {
+    "average_sparks_per_frame": 5.62,
+    "estimated_sparks_per_sec": 168.4,
+    "peak_sparks_count": 42,
+    "peak_sparks_timestamp_sec": 68.45,
+    "peak_sparks_frame": 2051,
+    "spatter_severity": "HIGH / BURST"
+  },
+  "stability_telemetry": {
+    "process_stability_index_pct": 97.8,
+    "mean_temporal_mse": 15.1,
+    "std_temporal_mse": 9.2,
+    "anomaly_threshold_3sigma": 42.7,
+    "detected_instability_frames_count": 88,
+    "instability_percentage": 2.2
+  }
+}

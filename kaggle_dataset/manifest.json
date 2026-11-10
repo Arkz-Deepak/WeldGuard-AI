@@ -1,0 +1,41 @@
+{
+  "dataset_name": "weldguard-welding-dataset",
+  "archives": [
+    {
+      "source_video": "video_20260908_170143.mp4",
+      "archive_file": "video_20260908_170143_128x128.npz",
+      "num_frames": 3430,
+      "resolution": [
+        128,
+        128
+      ],
+      "fps": 30.02,
+      "stride": 2,
+      "file_size_mb": 140.86
+    },
+    {
+      "source_video": "video_20260908_171604.mp4",
+      "archive_file": "video_20260908_171604_128x128.npz",
+      "num_frames": 4023,
+      "resolution": [
+        128,
+        128
+      ],
+      "fps": 30.02,
+      "stride": 2,
+      "file_size_mb": 160.87
+    },
+    {
+      "source_video": "IMG_3601.MOV",
+      "archive_file": "IMG_3601_128x128.npz",
+      "num_frames": 4888,
+      "resolution": [
+        128,
+        128
+      ],
+      "fps": 29.98,
+      "stride": 2,
+      "file_size_mb": 195.89
+    }
+  ]
+}

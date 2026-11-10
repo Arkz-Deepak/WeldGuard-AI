@@ -1,0 +1,9 @@
+{
+  "title": "WeldGuard Real-World Welding Videos Dataset",
+  "id": "deepark121/weldguard-welding-dataset",
+  "licenses": [
+    {
+      "name": "CC0-1.0"
+    }
+  ]
+}

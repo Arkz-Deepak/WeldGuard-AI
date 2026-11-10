@@ -1,0 +1,78 @@
+{
+  "video_name": "IMG_3601.MOV",
+  "video_duration_sec": 163.07,
+  "video_duration_formatted": "2m 43s",
+  "total_frames": 4888,
+  "fps": 29.97,
+  "operator_telemetry": {
+    "total_active_grinding_sec": 86.8,
+    "total_active_grinding_formatted": "1m 26s",
+    "grinding_duty_cycle_pct": 53.2,
+    "active_grinding_sessions_count": 4,
+    "peak_spark_count": 58,
+    "mean_motion_energy": 42.15,
+    "grinding_sessions": [
+      {
+        "session_id": 1,
+        "start_time_sec": 4.5,
+        "end_time_sec": 28.2,
+        "duration_sec": 23.7,
+        "start_frame": 135,
+        "end_frame": 845
+      },
+      {
+        "session_id": 2,
+        "start_time_sec": 38.0,
+        "end_time_sec": 65.4,
+        "duration_sec": 27.4,
+        "start_frame": 1139,
+        "end_frame": 1960
+      },
+      {
+        "session_id": 3,
+        "start_time_sec": 79.2,
+        "end_time_sec": 98.6,
+        "duration_sec": 19.4,
+        "start_frame": 2374,
+        "end_frame": 2955
+      },
+      {
+        "session_id": 4,
+        "start_time_sec": 112.0,
+        "end_time_sec": 128.3,
+        "duration_sec": 16.3,
+        "start_frame": 3357,
+        "end_frame": 3845
+      }
+    ]
+  },
+  "crane_gallery_benchmark_correlation": [
+    {
+      "seq": 5,
+      "stage": "I Beam UT & Cleaning (Grinder)",
+      "standard_cycle_min": 200,
+      "takt_min": 227,
+      "extrapolated_active_time_min": 106.4,
+      "projected_variance_vs_takt_min": -120.6,
+      "compliance_status": "COMPLIANT / WITHIN TAKT"
+    },
+    {
+      "seq": 9,
+      "stage": "UT inspection & Cleaning (Grinder)",
+      "standard_cycle_min": 120,
+      "takt_min": 227,
+      "extrapolated_active_time_min": 63.8,
+      "projected_variance_vs_takt_min": -163.2,
+      "compliance_status": "COMPLIANT / WITHIN TAKT"
+    },
+    {
+      "seq": 19,
+      "stage": "Assy cleaning & FW (Grinder)",
+      "standard_cycle_min": 160,
+      "takt_min": 227,
+      "extrapolated_active_time_min": 85.1,
+      "projected_variance_vs_takt_min": -141.9,
+      "compliance_status": "COMPLIANT / WITHIN TAKT"
+    }
+  ]
+}

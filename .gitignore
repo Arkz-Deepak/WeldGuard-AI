@@ -1,0 +1,36 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Large Video Files (>100MB exceeding GitHub limits)
+*.mp4
+*.mov
+*.MOV
+*.avi
+*.mkv
+data/samples_*/
+data/samples_mov/
+
+# Large Dataset Archives (>100MB exceeding GitHub limits)
+*.npz
+kaggle_dataset/*.npz
+kaggle_dataset_compact/*.npz
+
+# Whitelist Data Reports, Visual Analytics Plots, and Excel Databases
+!data/*.png
+!data/*.json
+!data/*.xlsx
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+
+# OS & IDE
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,11 @@
+{
+  "timestamp": "2026-10-23 13:11:06",
+  "device": "cuda",
+  "gpu_name": "Tesla T4",
+  "num_epochs": 12,
+  "batch_size": 16,
+  "best_val_loss": 0.002937,
+  "final_train_loss": 0.003402,
+  "final_val_loss": 0.003003,
+  "total_training_time_sec": 43.1
+}
