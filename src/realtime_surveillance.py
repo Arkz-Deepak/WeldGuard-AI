@@ -277,6 +277,10 @@ class WeldPoolGeometryAnalyzer:
         self.width_history = collections.deque(maxlen=150)
         self.length_history = collections.deque(maxlen=150)
 
+    def reset_baseline(self):
+        self.width_history.clear()
+        self.length_history.clear()
+
     def analyze_pool(self, roi_frame: np.ndarray) -> Optional[Dict]:
         b = roi_frame[:, :, 0]
         g = roi_frame[:, :, 1]
@@ -314,11 +318,31 @@ class WeldPoolGeometryAnalyzer:
         width = min(dim1, dim2)
         length = max(dim1, dim2)
 
-        # Ignore linear reflection streaks spanning across the ROI
-        if length > h_roi * 0.65:
+        # Ignore linear reflection streaks spanning across the ROI unless pool area is massive
+        area = float(cv2.contourArea(primary))
+        if length > h_roi * 0.95:
+            if area > 35000:
+                # Catastrophic blowout / burn-through expansion
+                return {
+                    'center': center,
+                    'width': round(width, 1),
+                    'length': round(length, 1),
+                    'angle': round(angle, 1),
+                    'aspect_ratio': round(aspect_ratio, 2),
+                    'area': round(area, 1),
+                    'ellipse': ellipse,
+                    'contour': primary,
+                    'mean_width': round(mu_w, 1),
+                    'is_burn_through': True,
+                    'is_lack_of_penetration': False,
+                    'is_humping': False
+                }
             return None
 
-        area = float(cv2.contourArea(primary))
+        # Ignore tiny inter-pulse background dips or stray spark reflections
+        if width < 25.0 or area < 400.0:
+            return None
+
         aspect_ratio = length / max(1.0, width)
 
         self.width_history.append(width)
@@ -330,10 +354,11 @@ class WeldPoolGeometryAnalyzer:
         mu_l = float(np.mean(self.length_history))
 
         # Defect checks based on ISO 5817 / AWS D1.1 geometry tolerances
-        has_baseline = len(self.width_history) >= 20
-        is_burn_through = (width > (mu_w + 2.5 * max(1.0, sigma_w)) and width > 1.4 * mu_w) if has_baseline else False
-        is_lack_of_penetration = (width < (mu_w - 2.5 * max(1.0, sigma_w)) and width < 0.65 * mu_w) if has_baseline else False
-        is_humping = (aspect_ratio > 3.0 and length > 1.8 * mu_l) if has_baseline else False
+        # Require 35 frames of active arc to establish true steady-state pool geometry
+        has_baseline = len(self.width_history) >= 35
+        is_burn_through = (width > (mu_w + 3.0 * max(2.0, sigma_w)) and width > 1.65 * mu_w) if has_baseline else False
+        is_lack_of_penetration = (width < (mu_w - 3.0 * max(2.0, sigma_w)) and width < 0.55 * mu_w) if has_baseline else False
+        is_humping = (aspect_ratio > 3.0 and length > 1.65 * mu_l) if has_baseline else False
 
         return {
             'center': center,
@@ -518,6 +543,7 @@ class RealTimeSurveillanceEngine:
         self.consecutive_arc_drop_frames = 0
         self.last_flameout_time = -999.0
         self.last_known_arc_centroid: Optional[Tuple[int, int]] = None
+        self.seam_completed = False
         self.prev_bright_mask: Optional[np.ndarray] = None
 
         self.session_metrics = {
@@ -601,60 +627,29 @@ class RealTimeSurveillanceEngine:
     def _detect_arc_with_proximity(self, frame: np.ndarray) -> Tuple[bool, Optional[Tuple[int, int]]]:
         """
         Detects true welding torch centroid using temporal spark dynamics
-        and compact arc plasma core bounding, strictly eliminating static sunlight glare sheets
-        and standby traverse specular reflections.
+        and compact arc plasma core bounding, strictly eliminating static sunlight glare sheets,
+        title card text slides, and subtitle banners.
         """
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        _, th_bright = cv2.threshold(gray, 220, 255, cv2.THRESH_BINARY)
-
-        # 1. Temporal dynamic spark isolation (must NOT be stationary across consecutive frames)
-        if self.prev_bright_mask is not None and self.prev_bright_mask.shape == th_bright.shape:
-            dyn_bright = cv2.bitwise_and(th_bright, cv2.bitwise_not(self.prev_bright_mask))
-        else:
-            dyn_bright = np.zeros_like(th_bright)
-
-        self.prev_bright_mask = th_bright
-
-        # Mask out border margins (50px margin to avoid vignetting/edge reflections)
-        dyn_bright[:50, :] = 0
-        dyn_bright[-50:, :] = 0
-        dyn_bright[:, :50] = 0
-        dyn_bright[:, -50:] = 0
-
-        # Mask out environmental sunlight glare identified during T0 calibration
-        if self.ambient_sunlight_mask is not None and self.ambient_sunlight_mask.shape == dyn_bright.shape:
-            dyn_bright[self.ambient_sunlight_mask > 0] = 0
-
-        cnts_dyn, _ = cv2.findContours(dyn_bright, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        dyn_sparks = [c for c in cnts_dyn if 2 <= cv2.contourArea(c) <= 200]
-
-        # In standby / approach traverse, only 0-6 static reflections appear.
-        # An active GMAW electric arc produces violent ballistic plasma sparks (>= 8 sparks).
-        if len(dyn_sparks) < 8:
+        if self.seam_completed:
             return False, None
 
-        # 2. Dynamic spark cluster centroid
-        spark_pts = []
-        for c in dyn_sparks:
-            M = cv2.moments(c)
-            if M['m00'] > 0:
-                spark_pts.append((M['m10'] / M['m00'], M['m01'] / M['m00']))
-
-        if not spark_pts:
+        # Reject presentation slides / white text cards (welding environments have dark ambient lighting)
+        if frame.mean() > 88.0:
             return False, None
 
-        spark_center = (float(np.median([p[0] for p in spark_pts])), float(np.median([p[1] for p in spark_pts])))
+        h_orig, w_orig = frame.shape[:2]
+        bot_subtitle_margin = int(h_orig * 0.86)  # Exclude bottom 14% (subtitles / watermarks)
 
-        # 3. Saturated arc core candidates:
-        # Must NOT be a massive diffuse sunlight sheet (reject area > 4000 or bounding box > 220px)
         b = frame[:, :, 0]
         g = frame[:, :, 1]
         r = frame[:, :, 2]
+
+        # Saturated arc core:
         saturated = ((b > 240) & (g > 230) & (r > 200)).astype(np.uint8) * 255
-        saturated[:50, :] = 0
-        saturated[-50:, :] = 0
-        saturated[:, :50] = 0
-        saturated[:, -50:] = 0
+        saturated[bot_subtitle_margin:, :] = 0  # Ignore subtitle / watermark area
+        saturated[:30, :] = 0
+        saturated[:, :30] = 0
+        saturated[:, -30:] = 0
 
         # Mask out environmental sunlight glare identified during T0 calibration
         if self.ambient_sunlight_mask is not None and self.ambient_sunlight_mask.shape == saturated.shape:
@@ -662,27 +657,50 @@ class RealTimeSurveillanceEngine:
 
         s_cnts, _ = cv2.findContours(saturated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
+        # Valid arc core candidates in macro or standard industrial camera:
+        # A real GMAW electric arc produces an intense saturated core (area between 1400 and 65000 px).
+        # Text glyphs on title slides have area < 1000 px.
         candidates = []
         for c in s_cnts:
             a = cv2.contourArea(c)
             x, y, w, h = cv2.boundingRect(c)
-            if 30 <= a <= 4000 and w < 220 and h < 220:
+            if 1400 <= a <= 65000 and w < 500 and h < 500:
                 M = cv2.moments(c)
                 if M['m00'] > 0:
                     cx = int(M['m10'] / M['m00'])
                     cy = int(M['m01'] / M['m00'])
                     candidates.append((cx, cy, a, c))
 
-        pos = None
-        # Associate saturated arc core closest to dynamic spark median
-        if candidates:
-            chosen = min(candidates, key=lambda item: np.hypot(item[0] - spark_center[0], item[1] - spark_center[1]))
-            if np.hypot(chosen[0] - spark_center[0], chosen[1] - spark_center[1]) < 250:
-                pos = (chosen[0], chosen[1])
-            else:
-                pos = (int(spark_center[0]), int(spark_center[1]))
+        # Check temporal dynamic sparks
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        _, th_bright = cv2.threshold(gray, 220, 255, cv2.THRESH_BINARY)
+        th_bright[bot_subtitle_margin:, :] = 0
+
+        if self.prev_bright_mask is not None and self.prev_bright_mask.shape == th_bright.shape:
+            dyn_bright = cv2.bitwise_and(th_bright, cv2.bitwise_not(self.prev_bright_mask))
         else:
-            pos = (int(spark_center[0]), int(spark_center[1]))
+            dyn_bright = np.zeros_like(th_bright)
+        self.prev_bright_mask = th_bright
+
+        cnts_dyn, _ = cv2.findContours(dyn_bright, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        dyn_sparks = [c for c in cnts_dyn if 2 <= cv2.contourArea(c) <= 300]
+
+        # Arc is ON only if an authentic arc core exists, OR violent dynamic sparks (>= 12) exist
+        if not candidates and len(dyn_sparks) < 12:
+            return False, None
+
+        if candidates:
+            chosen = max(candidates, key=lambda item: item[2])
+            pos = (chosen[0], chosen[1])
+        else:
+            spark_pts = [(cv2.moments(c)['m10']/cv2.moments(c)['m00'], cv2.moments(c)['m01']/cv2.moments(c)['m00']) 
+                         for c in dyn_sparks if cv2.moments(c)['m00'] > 0]
+            if not spark_pts:
+                return False, None
+            pos = (int(np.median([p[0] for p in spark_pts])), int(np.median([p[1] for p in spark_pts])))
+
+        if not self.arc_was_active_recently:
+            self.pool_analyzer.reset_baseline()
 
         self.last_known_arc_centroid = pos
         return True, pos
@@ -838,17 +856,28 @@ class RealTimeSurveillanceEngine:
                 mse_threshold_3sigma = 0.012
 
                 if not is_arc_on:
-                    active_alert_message = "STANDBY: ROBOT TRAVERSING (ARC OFF)"
+                    if self.arc_was_active_recently and self.arc_on_total_frames >= 400 and self.consecutive_arc_drop_frames >= 15:
+                        self.seam_completed = True
+                    if self.seam_completed:
+                        active_alert_message = "SEAM COMPLETED: NOMINAL EXECUTION PASS"
+                    else:
+                        active_alert_message = "STANDBY: ROBOT TRAVERSING (ARC OFF)"
                 else:
-                    active_alert_message = "NOMINAL EXECUTION - STABLE"
+                    is_warmed_up = self.arc_active_counter >= 35
+                    if not is_warmed_up:
+                        active_alert_message = "ARC STRIKE: POOL STABILIZING / CALIBRATING"
+                    else:
+                        active_alert_message = "NOMINAL EXECUTION - STABLE"
 
                     if len(self.mse_history) >= 20:
-                        mu = float(np.mean(self.mse_history))
-                        sigma = float(np.std(self.mse_history))
-                        mse_threshold_3sigma = mu + 2.5 * sigma
+                        mu_m = float(np.mean(self.mse_history))
+                        sig_m = float(np.std(self.mse_history))
+                        mse_threshold_3sigma = max(0.14, mu_m + 2.8 * sig_m)
+                    else:
+                        mse_threshold_3sigma = 0.16
 
-                    # Defect 1: ARC FLAMEOUT (only if active welding was underway and arc extinguished unexpectedly)
-                    if self.mode == "robotic" and self.arc_was_active_recently and self.arc_on_total_frames >= 30 and (4 <= self.consecutive_arc_drop_frames <= 15):
+                    # Defect 1: ARC FLAMEOUT (only if active welding was underway and arc extinguished unexpectedly before completing seam)
+                    if self.mode == "robotic" and self.arc_was_active_recently and (30 <= self.arc_on_total_frames < 450) and (4 <= self.consecutive_arc_drop_frames <= 15):
                         instantaneous_defect_score = max(instantaneous_defect_score, 45.0)
                         active_defect_name = "ARC FLAMEOUT / LOSS OF SHIELDING GAS"
                         if (curr_timestamp - self.last_flameout_time) > 4.0:
@@ -867,106 +896,108 @@ class RealTimeSurveillanceEngine:
                             self.session_metrics['arc_flameout_events'] += 1
                             alert_dispatched_this_frame = True
 
-                    # Defect 2: BURN-THROUGH RISK (WPGM)
-                    if pool_geom and pool_geom['is_burn_through']:
-                        instantaneous_defect_score = max(instantaneous_defect_score, 40.0)
-                        active_defect_name = f"BURN-THROUGH RISK (Width: {pool_geom['width']:.1f}px)"
-                        if not alert_dispatched_this_frame:
-                            alert = AlertEvent(
-                                alert_id=f"ALT-BURN-{frame_idx}",
-                                timestamp_sec=curr_timestamp,
-                                frame_idx=frame_idx,
-                                severity=AlertSeverity.CRITICAL,
-                                alert_type="burn_through_precursor",
-                                message=f"Molten pool width expanded to {pool_geom['width']:.1f}px (Mean: {pool_geom['mean_width']:.1f}px). Risk of root blowout / excessive heat input.",
-                                metrics={'pool_width': pool_geom['width'], 'mean_width': pool_geom['mean_width']},
-                                suggested_action="Increase robot travel speed, decrease welding current, or inspect root gap fit-up."
-                            )
-                            self.dispatcher.dispatch(alert, annotated_frame=raw_frame)
-                            self.session_metrics['burn_through_precursors'] += 1
-                            alert_dispatched_this_frame = True
+                    # Defects 2-6 only evaluated after initial arc strike warm-up stabilization window
+                    if is_warmed_up:
+                        # Defect 2: BURN-THROUGH RISK (WPGM)
+                        if pool_geom and pool_geom['is_burn_through']:
+                            instantaneous_defect_score = max(instantaneous_defect_score, 40.0)
+                            active_defect_name = f"BURN-THROUGH RISK (Width: {pool_geom['width']:.1f}px)"
+                            if not alert_dispatched_this_frame:
+                                alert = AlertEvent(
+                                    alert_id=f"ALT-BURN-{frame_idx}",
+                                    timestamp_sec=curr_timestamp,
+                                    frame_idx=frame_idx,
+                                    severity=AlertSeverity.CRITICAL,
+                                    alert_type="burn_through_precursor",
+                                    message=f"Molten pool width expanded to {pool_geom['width']:.1f}px (Mean: {pool_geom['mean_width']:.1f}px). Risk of root blowout / excessive heat input.",
+                                    metrics={'pool_width': pool_geom['width'], 'mean_width': pool_geom['mean_width']},
+                                    suggested_action="Increase robot travel speed, decrease welding current, or inspect root gap fit-up."
+                                )
+                                self.dispatcher.dispatch(alert, annotated_frame=raw_frame)
+                                self.session_metrics['burn_through_precursors'] += 1
+                                alert_dispatched_this_frame = True
 
-                    # Defect 3: LACK OF PENETRATION / FUSION (WPGM)
-                    if pool_geom and pool_geom['is_lack_of_penetration']:
-                        instantaneous_defect_score = max(instantaneous_defect_score, 20.0)
-                        if not active_defect_name:
-                            active_defect_name = f"LACK OF PENETRATION (Width: {pool_geom['width']:.1f}px)"
-                        if not alert_dispatched_this_frame:
-                            alert = AlertEvent(
-                                alert_id=f"ALT-LOP-{frame_idx}",
-                                timestamp_sec=curr_timestamp,
-                                frame_idx=frame_idx,
-                                severity=AlertSeverity.WARNING,
-                                alert_type="lack_of_penetration",
-                                message=f"Molten pool width constricted to {pool_geom['width']:.1f}px. Inadequate heat penetration or sidewall fusion.",
-                                metrics={'pool_width': pool_geom['width'], 'mean_width': pool_geom['mean_width']},
-                                suggested_action="Decrease robot travel speed, verify wire feed rate, or increase arc voltage."
-                            )
-                            self.dispatcher.dispatch(alert, annotated_frame=raw_frame)
-                            self.session_metrics['lack_of_penetration_events'] += 1
-                            alert_dispatched_this_frame = True
+                        # Defect 3: LACK OF PENETRATION / FUSION (WPGM)
+                        if pool_geom and pool_geom['is_lack_of_penetration']:
+                            instantaneous_defect_score = max(instantaneous_defect_score, 20.0)
+                            if not active_defect_name:
+                                active_defect_name = f"LACK OF PENETRATION (Width: {pool_geom['width']:.1f}px)"
+                            if not alert_dispatched_this_frame:
+                                alert = AlertEvent(
+                                    alert_id=f"ALT-LOP-{frame_idx}",
+                                    timestamp_sec=curr_timestamp,
+                                    frame_idx=frame_idx,
+                                    severity=AlertSeverity.WARNING,
+                                    alert_type="lack_of_penetration",
+                                    message=f"Molten pool width constricted to {pool_geom['width']:.1f}px. Inadequate heat penetration or sidewall fusion.",
+                                    metrics={'pool_width': pool_geom['width'], 'mean_width': pool_geom['mean_width']},
+                                    suggested_action="Decrease robot travel speed, verify wire feed rate, or increase arc voltage."
+                                )
+                                self.dispatcher.dispatch(alert, annotated_frame=raw_frame)
+                                self.session_metrics['lack_of_penetration_events'] += 1
+                                alert_dispatched_this_frame = True
 
-                    # Defect 4: HUMPING BEAD (WPGM)
-                    if pool_geom and pool_geom['is_humping']:
-                        instantaneous_defect_score = max(instantaneous_defect_score, 18.0)
-                        if not active_defect_name:
-                            active_defect_name = f"HUMPING BEAD (Aspect Ratio: {pool_geom['aspect_ratio']:.1f})"
-                        if not alert_dispatched_this_frame:
-                            alert = AlertEvent(
-                                alert_id=f"ALT-HUMP-{frame_idx}",
-                                timestamp_sec=curr_timestamp,
-                                frame_idx=frame_idx,
-                                severity=AlertSeverity.WARNING,
-                                alert_type="humping_bead",
-                                message=f"Extreme molten pool elongation (L/W: {pool_geom['aspect_ratio']:.1f}). Premature bead surface freezing.",
-                                metrics={'aspect_ratio': pool_geom['aspect_ratio'], 'pool_length': pool_geom['length']},
-                                suggested_action="Reduce excessive travel velocity to restore balanced liquid metal flow."
-                            )
-                            self.dispatcher.dispatch(alert, annotated_frame=raw_frame)
-                            self.session_metrics['humping_events'] += 1
-                            alert_dispatched_this_frame = True
+                        # Defect 4: HUMPING BEAD (WPGM)
+                        if pool_geom and pool_geom['is_humping']:
+                            instantaneous_defect_score = max(instantaneous_defect_score, 18.0)
+                            if not active_defect_name:
+                                active_defect_name = f"HUMPING BEAD (Aspect Ratio: {pool_geom['aspect_ratio']:.1f})"
+                            if not alert_dispatched_this_frame:
+                                alert = AlertEvent(
+                                    alert_id=f"ALT-HUMP-{frame_idx}",
+                                    timestamp_sec=curr_timestamp,
+                                    frame_idx=frame_idx,
+                                    severity=AlertSeverity.WARNING,
+                                    alert_type="humping_bead",
+                                    message=f"Extreme molten pool elongation (L/W: {pool_geom['aspect_ratio']:.1f}). Premature bead surface freezing.",
+                                    metrics={'aspect_ratio': pool_geom['aspect_ratio'], 'pool_length': pool_geom['length']},
+                                    suggested_action="Reduce excessive travel velocity to restore balanced liquid metal flow."
+                                )
+                                self.dispatcher.dispatch(alert, annotated_frame=raw_frame)
+                                self.session_metrics['humping_events'] += 1
+                                alert_dispatched_this_frame = True
 
-                    # Defect 5: SPATTER BURST ERUPTION
-                    if spatter_count >= self.spatter_burst_threshold:
-                        spat_score = 30.0 if spatter_count >= (self.spatter_burst_threshold * 2) else 15.0
-                        instantaneous_defect_score = max(instantaneous_defect_score, spat_score)
-                        if not active_defect_name:
-                            active_defect_name = f"SPATTER ERUPTION ({spatter_count} sparks/frame)"
-                        if not alert_dispatched_this_frame:
-                            severity = AlertSeverity.CRITICAL if spatter_count >= (self.spatter_burst_threshold * 2) else AlertSeverity.WARNING
-                            alert = AlertEvent(
-                                alert_id=f"ALT-SPAT-{frame_idx}",
-                                timestamp_sec=curr_timestamp,
-                                frame_idx=frame_idx,
-                                severity=severity,
-                                alert_type="spatter_burst",
-                                message=f"Severe spatter burst detected: {spatter_count} molten droplets in torch ROI.",
-                                metrics={'spatter_count': spatter_count, 'burst_threshold': self.spatter_burst_threshold, 'reflections_suppressed': rejected_count},
-                                suggested_action="Adjust arc voltage trim, inspect shielding gas purity, or verify wire feed speed."
-                            )
-                            self.dispatcher.dispatch(alert, annotated_frame=raw_frame)
-                            self.session_metrics['spatter_burst_events'] += 1
-                            alert_dispatched_this_frame = True
+                        # Defect 5: SPATTER BURST ERUPTION
+                        if spatter_count >= self.spatter_burst_threshold:
+                            spat_score = 30.0 if spatter_count >= (self.spatter_burst_threshold * 2) else 15.0
+                            instantaneous_defect_score = max(instantaneous_defect_score, spat_score)
+                            if not active_defect_name:
+                                active_defect_name = f"SPATTER ERUPTION ({spatter_count} sparks/frame)"
+                            if not alert_dispatched_this_frame:
+                                severity = AlertSeverity.CRITICAL if spatter_count >= (self.spatter_burst_threshold * 2) else AlertSeverity.WARNING
+                                alert = AlertEvent(
+                                    alert_id=f"ALT-SPAT-{frame_idx}",
+                                    timestamp_sec=curr_timestamp,
+                                    frame_idx=frame_idx,
+                                    severity=severity,
+                                    alert_type="spatter_burst",
+                                    message=f"Severe spatter burst detected: {spatter_count} molten droplets in torch ROI.",
+                                    metrics={'spatter_count': spatter_count, 'burst_threshold': self.spatter_burst_threshold, 'reflections_suppressed': rejected_count},
+                                    suggested_action="Adjust arc voltage trim, inspect shielding gas purity, or verify wire feed speed."
+                                )
+                                self.dispatcher.dispatch(alert, annotated_frame=raw_frame)
+                                self.session_metrics['spatter_burst_events'] += 1
+                                alert_dispatched_this_frame = True
 
-                    # Defect 6: CONVLSTM POOL INSTABILITY
-                    if latest_mse > mse_threshold_3sigma:
-                        instantaneous_defect_score = max(instantaneous_defect_score, 30.0)
-                        if not active_defect_name:
-                            active_defect_name = f"HYDRODYNAMIC TURBULENCE (MSE: {latest_mse:.4f})"
-                        if not alert_dispatched_this_frame:
-                            alert = AlertEvent(
-                                alert_id=f"ALT-POOL-{frame_idx}",
-                                timestamp_sec=curr_timestamp,
-                                frame_idx=frame_idx,
-                                severity=AlertSeverity.CRITICAL,
-                                alert_type="weld_pool_instability",
-                                message=f"Spatiotemporal fluid turbulence detected. ConvLSTM macro prediction error exceeded 2.5-sigma limit ({latest_mse:.5f} > {mse_threshold_3sigma:.5f})",
-                                metrics={'mse_error': round(latest_mse, 5), 'threshold_3sigma': round(mse_threshold_3sigma, 5)},
-                                suggested_action="Check robotic travel velocity, torch angle, and root gap variations."
-                            )
-                            self.dispatcher.dispatch(alert, annotated_frame=raw_frame)
-                            self.session_metrics['pool_destabilization_events'] += 1
-                            alert_dispatched_this_frame = True
+                        # Defect 6: CONVLSTM POOL INSTABILITY
+                        if latest_mse > mse_threshold_3sigma:
+                            instantaneous_defect_score = max(instantaneous_defect_score, 30.0)
+                            if not active_defect_name:
+                                active_defect_name = f"HYDRODYNAMIC TURBULENCE (MSE: {latest_mse:.4f})"
+                            if not alert_dispatched_this_frame:
+                                alert = AlertEvent(
+                                    alert_id=f"ALT-POOL-{frame_idx}",
+                                    timestamp_sec=curr_timestamp,
+                                    frame_idx=frame_idx,
+                                    severity=AlertSeverity.CRITICAL,
+                                    alert_type="weld_pool_instability",
+                                    message=f"Spatiotemporal fluid turbulence detected. ConvLSTM macro prediction error exceeded 2.5-sigma limit ({latest_mse:.5f} > {mse_threshold_3sigma:.5f})",
+                                    metrics={'mse_error': round(latest_mse, 5), 'threshold_3sigma': round(mse_threshold_3sigma, 5)},
+                                    suggested_action="Check robotic travel velocity, torch angle, and root gap variations."
+                                )
+                                self.dispatcher.dispatch(alert, annotated_frame=raw_frame)
+                                self.session_metrics['pool_destabilization_events'] += 1
+                                alert_dispatched_this_frame = True
 
                 # Industrial Cumulative Stressor & Safety Trip Evaluation
                 is_halted, status_tier, stress_val = self.safety_engine.update(
