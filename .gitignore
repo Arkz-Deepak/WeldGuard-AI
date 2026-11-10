@@ -12,6 +12,8 @@ __pycache__/
 *.mkv
 data/samples_*/
 data/samples_mov/
+data/external_videos/
+data/alerts/
 
 # Large Dataset Archives (>100MB exceeding GitHub limits)
 *.npz
