@@ -1,0 +1,73 @@
+{
+  "benchmark_timestamp": "2026-11-14T18:32:06Z",
+  "summary": {
+    "total_benchmarks_evaluated": 3,
+    "false_positive_rate_pct": 0.0,
+    "defect_detection_rate_pct": 50.0,
+    "mean_surveillance_fps": 10.0,
+    "t0_ground_truth_normalization": "ACTIVE",
+    "zero_flapping_safety_trip": "VERIFIED"
+  },
+  "benchmarks": [
+    {
+      "video_name": "panasonic_burn_through_after.mp4",
+      "total_frames": 700,
+      "duration_sec": 12.63,
+      "arc_on_sec": 11.35,
+      "duty_cycle_pct": 89.9,
+      "throughput_fps": 5.8,
+      "mean_pool_width_px": 174.5,
+      "burn_through_events": 0,
+      "pool_turbulence_events": 0,
+      "spatter_burst_events": 13,
+      "total_alerts": 6,
+      "is_system_halted": false,
+      "safety_estop_trips": 0,
+      "glare_reflections_suppressed": 24445,
+      "label": "Panasonic MTS Nominal (After)",
+      "type": "nominal",
+      "expected_defect": false,
+      "test_passed": true
+    },
+    {
+      "video_name": "panasonic_burn_through_before.mp4",
+      "total_frames": 850,
+      "duration_sec": 15.14,
+      "arc_on_sec": 12.77,
+      "duty_cycle_pct": 84.3,
+      "throughput_fps": 5.9,
+      "mean_pool_width_px": 161.4,
+      "burn_through_events": 1,
+      "pool_turbulence_events": 0,
+      "spatter_burst_events": 0,
+      "total_alerts": 3,
+      "is_system_halted": false,
+      "safety_estop_trips": 0,
+      "glare_reflections_suppressed": 22223,
+      "label": "Panasonic Conventional Blowout (Before)",
+      "type": "defect",
+      "expected_defect": true,
+      "test_passed": true
+    },
+    {
+      "video_name": "xiris_burn_through.mp4",
+      "total_frames": 500,
+      "duration_sec": 16.7,
+      "arc_on_sec": 1.97,
+      "duty_cycle_pct": 11.8,
+      "throughput_fps": 18.3,
+      "mean_pool_width_px": 77.9,
+      "burn_through_events": 0,
+      "pool_turbulence_events": 0,
+      "spatter_burst_events": 0,
+      "total_alerts": 0,
+      "is_system_halted": false,
+      "safety_estop_trips": 0,
+      "glare_reflections_suppressed": 26,
+      "label": "Xiris AI HDR Monitoring",
+      "type": "defect",
+      "expected_defect": true,
+      "test_passed": false
+    }
+  ]
+}

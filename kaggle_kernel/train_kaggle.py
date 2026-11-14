@@ -127,8 +127,9 @@ class SpatiotemporalConvLSTMAutoencoder(nn.Module):
 # 2. Memory-Efficient Fast NPZ Dataset
 # ---------------------------------------------------------------------
 class PackedWeldingDataset(Dataset):
-    def __init__(self, npz_paths, seq_len=8, stride=2, max_samples=None):
+    def __init__(self, npz_paths, seq_len=8, stride=2, max_samples=None, use_anchor_differential=True):
         self.seq_len = seq_len
+        self.use_anchor_differential = use_anchor_differential
         self.sequences = []
 
         for p in npz_paths:
@@ -141,23 +142,31 @@ class PackedWeldingDataset(Dataset):
             num_frames = len(frames)
             window = seq_len + 1
 
+            # Lock initial 5-10 frames as immutable T0 Ground Truth Anchor
+            anchor_frame = np.median(frames[:min(8, num_frames)], axis=0).astype(np.float32)
+
             for s in range(0, num_frames - window, stride):
-                # Store (frame_array_reference, start_idx)
-                self.sequences.append((frames, s))
+                # Store (frame_array_reference, start_idx, anchor_frame)
+                self.sequences.append((frames, s, anchor_frame))
                 if max_samples and len(self.sequences) >= max_samples:
                     break
 
-        print(f"[Dataset] Indexed {len(self.sequences)} sliding window samples across {len(npz_paths)} archive(s)")
+        print(f"[Dataset] Indexed {len(self.sequences)} sliding window samples across {len(npz_paths)} archive(s) (Anchor-Differential: {use_anchor_differential})")
 
     def __len__(self):
         return len(self.sequences)
 
     def __getitem__(self, idx):
-        frames, start_idx = self.sequences[idx]
-        window = frames[start_idx : start_idx + self.seq_len + 1]  # [T+1, H, W, 3]
+        frames, start_idx, anchor_frame = self.sequences[idx]
+        window = frames[start_idx : start_idx + self.seq_len + 1].astype(np.float32)  # [T+1, H, W, 3]
 
-        # Convert to float tensor [T+1, 3, H, W] in [0, 1]
-        t = torch.from_numpy(window).permute(0, 3, 1, 2).float() / 255.0
+        if self.use_anchor_differential:
+            # Measure physical process differential against immutable T0 ground truth anchor
+            diff_window = np.abs(window - anchor_frame) / 255.0
+            t = torch.from_numpy(diff_window).permute(0, 3, 1, 2).float()
+        else:
+            t = torch.from_numpy(window / 255.0).permute(0, 3, 1, 2).float()
+
         past_seq = t[:self.seq_len]      # [T, 3, H, W]
         target_next = t[self.seq_len]    # [3, H, W]
         return past_seq, target_next

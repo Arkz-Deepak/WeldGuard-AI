@@ -195,3 +195,50 @@ def test_safety_trip_engine_sustained_defect_halt():
     assert engine.status_tier == "NOMINAL"
     assert engine.stressor_level == 0.0
 
+
+def test_t0_ground_truth_anchor_and_photometric_normalization():
+    """Verify that initial 5-10 frames establish the immutable T0 ground truth anchor and normalize color."""
+    from src.realtime_surveillance import T0GroundTruthAnchorEngine
+
+    anchor_engine = T0GroundTruthAnchorEngine(num_anchor_frames=8)
+    assert not anchor_engine.is_calibrated
+
+    # Generate 8 synthetic calibration frames with slight noise around mean 60
+    np.random.seed(42)
+    for i in range(8):
+        frame = np.full((100, 100, 3), 60 + i, dtype=np.uint8)
+        ready = anchor_engine.update_calibration(frame)
+        if i < 7:
+            assert ready is False
+        else:
+            assert ready is True
+
+    assert anchor_engine.is_calibrated is True
+    assert anchor_engine.anchor_frame is not None
+    assert anchor_engine.anchor_frame.shape == (100, 100, 3)
+
+    # Test photometric color normalization:
+    # A drifting frame with higher exposure should be mapped back into anchor domain
+    bright_frame = np.full((100, 100, 3), 120, dtype=np.uint8)
+    norm_frame = anchor_engine.normalize_color(bright_frame)
+    assert norm_frame.shape == bright_frame.shape
+    # Normalized frame mean should shift towards anchor mean
+    assert norm_frame.mean() < bright_frame.mean()
+
+    # Test differential status when welding starts (localized arc strike):
+    welding_frame = bright_frame.copy()
+    cv2.circle(welding_frame, (50, 50), 15, (255, 255, 255), -1)
+    norm_weld = anchor_engine.normalize_color(welding_frame)
+    diff_status = anchor_engine.compute_differential_status(norm_weld)
+    assert "status" in diff_status
+    assert "mean_delta" in diff_status
+    assert diff_status["mean_delta"] > 0.0
+
+    # Test neural differential input tensor shape:
+    crop = norm_frame[:32, :32]
+    anchor_crop = anchor_engine.anchor_frame[:32, :32]
+    tensor_input, diff_resized = anchor_engine.extract_differential_neural_input(crop, anchor_crop, target_size=(128, 128))
+    assert tensor_input.shape == (3, 128, 128)
+    assert diff_resized.shape == (128, 128, 3)
+
+

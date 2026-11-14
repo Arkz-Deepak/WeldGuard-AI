@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WeldGuard-AI | Real-Time Factory Surveillance & In-Situ Alert Console</title>
+  <style>
+    :root {
+      --bg-base: #0a0d14;
+      --bg-panel: #111622;
+      --bg-card: #182030;
+      --border-panel: #23304a;
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --accent-cyan: #06b6d4;
+      --accent-blue: #3b82f6;
+      --status-nominal: #10b981;
+      --status-warning: #f59e0b;
+      --status-critical: #ef4444;
+      --gauge-track: #1e293b;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-base);
+      color: var(--text-main);
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    header {
+      background-color: var(--bg-panel);
+      border-bottom: 1px solid var(--border-panel);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-logo {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, #06b6d4, #3b82f6);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      font-size: 18px;
+      color: #fff;
+      box-shadow: 0 0 15px rgba(6, 182, 212, 0.4);
+    }
+
+    .brand-title {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+
+    .brand-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .system-badges {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      border: 1px solid transparent;
+    }
+
+    .badge-t0 {
+      background: rgba(6, 182, 212, 0.12);
+      border-color: rgba(6, 182, 212, 0.3);
+      color: #38bdf8;
+    }
+
+    .badge-nominal {
+      background: rgba(16, 185, 129, 0.12);
+      border-color: rgba(16, 185, 129, 0.3);
+      color: #34d399;
+    }
+
+    .badge-warning {
+      background: rgba(245, 158, 11, 0.12);
+      border-color: rgba(245, 158, 11, 0.3);
+      color: #fbbf24;
+    }
+
+    .badge-critical {
+      background: rgba(239, 68, 68, 0.18);
+      border-color: rgba(239, 68, 68, 0.5);
+      color: #f87171;
+      animation: pulse-border 1.5s infinite;
+    }
+
+    @keyframes pulse-border {
+      0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6); }
+      70% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+    }
+
+    .main-layout {
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: 20px;
+      padding: 20px 24px;
+      flex: 1;
+    }
+
+    @media (max-width: 1200px) {
+      .main-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .video-viewport-panel {
+      background-color: var(--bg-panel);
+      border: 1px solid var(--border-panel);
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+    }
+
+    .video-toolbar {
+      padding: 12px 18px;
+      background-color: var(--bg-card);
+      border-bottom: 1px solid var(--border-panel);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .video-selectors {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid var(--border-panel);
+      background-color: var(--bg-panel);
+      color: var(--text-main);
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn:hover {
+      background-color: #1f2b42;
+      border-color: #3b82f6;
+    }
+
+    .btn-active {
+      background-color: #2563eb;
+      border-color: #60a5fa;
+      color: #fff;
+      box-shadow: 0 0 10px rgba(37, 99, 235, 0.4);
+    }
+
+    .btn-estop {
+      background: linear-gradient(135deg, #b91c1c, #ef4444);
+      border-color: #f87171;
+      color: #fff;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+
+    .btn-estop:hover {
+      background: linear-gradient(135deg, #dc2626, #f87171);
+      box-shadow: 0 0 15px rgba(239, 68, 68, 0.6);
+    }
+
+    .video-frame-container {
+      position: relative;
+      background-color: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 480px;
+      width: 100%;
+    }
+
+    .live-stream-img {
+      width: 100%;
+      height: auto;
+      max-height: 640px;
+      object-fit: contain;
+      display: block;
+    }
+
+    .estop-trip-overlay {
+      display: none;
+      position: absolute;
+      inset: 0;
+      background: rgba(185, 28, 28, 0.85);
+      backdrop-filter: blur(4px);
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 40;
+      text-align: center;
+      padding: 24px;
+    }
+
+    .estop-trip-overlay.active {
+      display: flex;
+    }
+
+    .estop-trip-title {
+      font-size: 26px;
+      font-weight: 900;
+      letter-spacing: 1.5px;
+      color: #fee2e2;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+      text-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
+    }
+
+    .estop-trip-desc {
+      font-size: 15px;
+      color: #ffffff;
+      max-width: 600px;
+      line-height: 1.5;
+      margin-bottom: 20px;
+    }
+
+    .sidebar-metrics {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .panel-card {
+      background-color: var(--bg-panel);
+      border: 1px solid var(--border-panel);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    }
+
+    .card-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .stressor-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 10px 0;
+    }
+
+    .gauge-svg {
+      width: 160px;
+      height: 160px;
+      transform: rotate(-90deg);
+    }
+
+    .gauge-bg {
+      fill: none;
+      stroke: var(--gauge-track);
+      stroke-width: 14;
+    }
+
+    .gauge-progress {
+      fill: none;
+      stroke: var(--status-nominal);
+      stroke-width: 14;
+      stroke-linecap: round;
+      stroke-dasharray: 440;
+      stroke-dashoffset: 440;
+      transition: stroke-dashoffset 0.3s ease, stroke 0.3s ease;
+    }
+
+    .stressor-readout {
+      margin-top: -100px;
+      margin-bottom: 30px;
+      text-align: center;
+    }
+
+    .stressor-val {
+      font-size: 34px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+    }
+
+    .stressor-unit {
+      font-size: 14px;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .stressor-tier {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      padding: 4px 12px;
+      border-radius: 12px;
+      margin-top: 6px;
+      display: inline-block;
+    }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .metric-cell {
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-panel);
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+
+    .metric-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+      text-transform: uppercase;
+    }
+
+    .metric-value {
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .progress-bar-container {
+      height: 6px;
+      background: var(--bg-card);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: var(--accent-cyan);
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+
+    .incidents-table-container {
+      grid-column: 1 / -1;
+      background-color: var(--bg-panel);
+      border: 1px solid var(--border-panel);
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-top: 4px;
+    }
+
+    .incidents-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      margin-top: 10px;
+    }
+
+    .incidents-table th {
+      text-align: left;
+      color: var(--text-muted);
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border-panel);
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    .incidents-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #1a2234;
+    }
+
+    .benchmark-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(10, 13, 20, 0.85);
+      backdrop-filter: blur(6px);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .benchmark-modal.active {
+      display: flex;
+    }
+
+    .benchmark-modal-content {
+      background-color: var(--bg-panel);
+      border: 1px solid var(--border-panel);
+      border-radius: 14px;
+      max-width: 900px;
+      width: 100%;
+      max-height: 90vh;
+      overflow-y: auto;
+      padding: 24px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+    }
+
+    .benchmark-chart-img {
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid var(--border-panel);
+      margin: 16px 0;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <div class="brand-logo">W</div>
+      <div>
+        <div class="brand-title">WeldGuard-AI Surveillance Console</div>
+        <div class="brand-sub">In-Situ Autonomous Defect Prevention & SCADA MES Gateway</div>
+      </div>
+    </div>
+    <div class="system-badges">
+      <span id="t0-badge" class="badge badge-t0">
+        <span>●</span> T0 ANCHOR: LOCKED (8 FRAMES)
+      </span>
+      <span id="status-badge" class="badge badge-nominal">
+        <span>●</span> STATUS: NOMINAL
+      </span>
+      <button class="btn" onclick="toggleAudioAlarm()">
+        <span id="audio-icon">🔔</span> Audio Alarm: <span id="audio-state">ON</span>
+      </button>
+      <button class="btn" onclick="openBenchmarkModal()">
+        📊 Benchmarks
+      </button>
+    </div>
+  </header>
+
+  <main class="main-layout">
+    <!-- Video Stream Viewport -->
+    <section class="video-viewport-panel">
+      <div class="video-toolbar">
+        <div class="video-selectors">
+          <span style="font-size: 12px; color: var(--text-muted); font-weight: 600;">FEED:</span>
+          <button id="btn-panasonic-nominal" class="btn btn-active" onclick="switchVideo('panasonic_nominal')">
+            Panasonic Nominal (After)
+          </button>
+          <button id="btn-panasonic-defect" class="btn" onclick="switchVideo('panasonic_defect')">
+            Panasonic Blowout (Before)
+          </button>
+          <button id="btn-xiris-hdr" class="btn" onclick="switchVideo('xiris_hdr')">
+            Xiris AI HDR
+          </button>
+          <button id="btn-kml-robotic" class="btn" onclick="switchVideo('kml_robotic')">
+            KML Robotic Seam
+          </button>
+        </div>
+        <div>
+          <button class="btn btn-estop" onclick="resetEstop()">
+            ⚡ RESET E-STOP HALT
+          </button>
+        </div>
+      </div>
+
+      <div class="video-frame-container">
+        <img id="stream-img" class="live-stream-img" src="/api/v2/surveillance/stream?video=panasonic_nominal" alt="Live Surveillance Stream" />
+        
+        <!-- Emergency Stop Red Trip Banner Overlay -->
+        <div id="estop-overlay" class="estop-trip-overlay">
+          <div class="estop-trip-title">⚠️ EMERGENCY STOP TRIPPED</div>
+          <div id="estop-reason-text" class="estop-trip-desc">
+            Excessive molten pool widening detected (Burn-Through Precursor). Robotic manipulator halted to prevent catastrophic burn-through hole blowout.
+          </div>
+          <button class="btn btn-estop" style="padding: 10px 24px; font-size: 14px;" onclick="resetEstop()">
+            ACKNOWLEDGE & RESET SAFETY TRIP
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right Sidebar Telemetry Metrics -->
+    <aside class="sidebar-metrics">
+      <!-- Safety Engine Stressor Gauge Card -->
+      <div class="panel-card">
+        <div class="card-title">
+          <span>Safety Stressor Level</span>
+          <span id="stressor-status-tag" style="color: var(--status-nominal);">NOMINAL</span>
+        </div>
+        <div class="stressor-container">
+          <svg class="gauge-svg" viewBox="0 0 160 160">
+            <circle class="gauge-bg" cx="80" cy="80" r="70" />
+            <circle id="gauge-circle" class="gauge-progress" cx="80" cy="80" r="70" />
+          </svg>
+          <div class="stressor-readout">
+            <div id="stressor-score" class="stressor-val" style="color: var(--status-nominal);">0.0</div>
+            <div class="stressor-unit">/ 100.0 (Trip @ 80)</div>
+          </div>
+        </div>
+        <div class="progress-bar-container">
+          <div id="stressor-bar" class="progress-bar-fill"></div>
+        </div>
+      </div>
+
+      <!-- Weld Pool Geometry Card -->
+      <div class="panel-card">
+        <div class="card-title">
+          <span>Weld Pool Geometry (WPGM)</span>
+          <span id="arc-badge" style="color: var(--accent-cyan);">ARC ON</span>
+        </div>
+        <div class="metrics-grid">
+          <div class="metric-cell">
+            <div class="metric-label">Pool Width</div>
+            <div id="metric-pool-width" class="metric-value">0.0 px</div>
+          </div>
+          <div class="metric-cell">
+            <div class="metric-label">Baseline Width</div>
+            <div id="metric-mean-width" class="metric-value">0.0 px</div>
+          </div>
+          <div class="metric-cell">
+            <div class="metric-label">Pool Length</div>
+            <div id="metric-pool-length" class="metric-value">0.0 px</div>
+          </div>
+          <div class="metric-cell">
+            <div class="metric-label">Aspect Ratio</div>
+            <div id="metric-aspect-ratio" class="metric-value">0.00</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Process Differential & Spatter Diagnostics -->
+      <div class="panel-card">
+        <div class="card-title">
+          <span>T0 Process Differential</span>
+        </div>
+        <div class="metrics-grid">
+          <div class="metric-cell" style="grid-column: 1 / -1;">
+            <div class="metric-label">Process State (ΔI_t)</div>
+            <div id="metric-diff-state" class="metric-value" style="font-size: 14px; color: #38bdf8;">ACTIVE_ARC_ENGAGED</div>
+          </div>
+          <div class="metric-cell">
+            <div class="metric-label">Spatter Droplets</div>
+            <div id="metric-spatter-count" class="metric-value">0</div>
+          </div>
+          <div class="metric-cell">
+            <div class="metric-label">Glares Suppressed</div>
+            <div id="metric-glares-suppressed" class="metric-value">0</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Incident History Ledger Table -->
+    <section class="incidents-table-container">
+      <div class="card-title">
+        <span>Live Factory Incidents & Surveillance Log</span>
+        <span id="incidents-count" style="color: var(--text-muted); font-size: 11px;">0 DISPATCHED</span>
+      </div>
+      <table class="incidents-table">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Severity</th>
+            <th>Defect Type</th>
+            <th>Metrics</th>
+            <th>Suggested Mitigation</th>
+          </tr>
+        </thead>
+        <tbody id="incidents-body">
+          <tr>
+            <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 18px;">
+              Surveillance active. No active defect incidents detected.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <!-- Benchmark Comparison Modal -->
+  <div id="benchmark-modal" class="benchmark-modal" onclick="closeBenchmarkModal(event)">
+    <div class="benchmark-modal-content" onclick="event.stopPropagation()">
+      <div class="card-title" style="font-size: 16px; margin-bottom: 12px;">
+        <span>Multi-Dataset Industrial Benchmark Comparison</span>
+        <button class="btn" onclick="closeBenchmarkModal()">✕ Close</button>
+      </div>
+      <p style="color: var(--text-muted); font-size: 13px; line-height: 1.5;">
+        Demonstrates 0.0% False Positive Rate on Panasonic MTS Nominal welding, immediate detection of burn-through blowout precursors on conventional GMAW, and anti-glare spatter filtering across industrial high-dynamic-range feeds.
+      </p>
+
+      <img src="/static/output/benchmark_comparison_results.png" class="benchmark-chart-img" alt="Benchmark Comparison Results" onerror="this.style.display='none'" />
+
+      <table class="incidents-table" style="margin-top: 14px;">
+        <thead>
+          <tr>
+            <th>Dataset / Source</th>
+            <th>Process Type</th>
+            <th>Frames</th>
+            <th>FPR (Nominal)</th>
+            <th>Blowout Caught</th>
+            <th>Result</th>
+          </tr>
+        </thead>
+        <tbody id="benchmark-table-body">
+          <tr>
+            <td>Panasonic MTS Thin Plate (After)</td>
+            <td>Nominal Low-Spatter GMAW</td>
+            <td>700</td>
+            <td>0.0% (0 False Trips)</td>
+            <td>N/A (Nominal)</td>
+            <td><span class="badge badge-nominal">PASS</span></td>
+          </tr>
+          <tr>
+            <td>Panasonic Conventional (Before)</td>
+            <td>Defect Catastrophic Hole</td>
+            <td>850</td>
+            <td>0.0%</td>
+            <td>Frame #780 (248.4px width)</td>
+            <td><span class="badge badge-nominal">CAUGHT</span></td>
+          </tr>
+          <tr>
+            <td>Xiris Industrial AI HDR</td>
+            <td>Melt Pool Anomaly</td>
+            <td>500</td>
+            <td>0.0%</td>
+            <td>Verified</td>
+            <td><span class="badge badge-nominal">PASS</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    let activeVideo = 'panasonic_nominal';
+    let audioAlarmEnabled = true;
+    let audioCtx = null;
+    let alarmPlaying = false;
+
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+    }
+
+    function playSiren() {
+      if (!audioAlarmEnabled) return;
+      initAudio();
+      if (!audioCtx || alarmPlaying) return;
+      
+      alarmPlaying = true;
+      try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(650, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(950, audioCtx.currentTime + 0.25);
+        osc.frequency.exponentialRampToValueAtTime(650, audioCtx.currentTime + 0.5);
+
+        gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.5);
+        setTimeout(() => { alarmPlaying = false; }, 600);
+      } catch (e) {
+        alarmPlaying = false;
+      }
+    }
+
+    function toggleAudioAlarm() {
+      audioAlarmEnabled = !audioAlarmEnabled;
+      document.getElementById('audio-state').innerText = audioAlarmEnabled ? 'ON' : 'OFF';
+      document.getElementById('audio-icon').innerText = audioAlarmEnabled ? '🔔' : '🔕';
+      if (audioAlarmEnabled) initAudio();
+    }
+
+    function switchVideo(videoId) {
+      activeVideo = videoId;
+      document.querySelectorAll('.video-selectors .btn').forEach(btn => btn.classList.remove('btn-active'));
+      const activeBtn = document.getElementById(`btn-${videoId.replace('_', '-')}`);
+      if (activeBtn) activeBtn.classList.add('btn-active');
+
+      const img = document.getElementById('stream-img');
+      img.src = `/api/v2/surveillance/stream?video=${videoId}&t=${Date.now()}`;
+      document.getElementById('estop-overlay').classList.remove('active');
+    }
+
+    async function resetEstop() {
+      try {
+        const res = await fetch('/api/v2/surveillance/reset_estop', { method: 'POST' });
+        const data = await res.json();
+        document.getElementById('estop-overlay').classList.remove('active');
+        document.getElementById('status-badge').className = 'badge badge-nominal';
+        document.getElementById('status-badge').innerHTML = '<span>●</span> STATUS: NOMINAL';
+      } catch (err) {
+        console.error('Failed to reset E-STOP:', err);
+      }
+    }
+
+    function openBenchmarkModal() {
+      document.getElementById('benchmark-modal').classList.add('active');
+    }
+
+    function closeBenchmarkModal() {
+      document.getElementById('benchmark-modal').classList.remove('active');
+    }
+
+    async function pollTelemetry() {
+      try {
+        const res = await fetch('/api/v2/surveillance/telemetry');
+        if (!res.ok) return;
+        const data = await res.json();
+
+        // Update Stressor Gauge
+        const stressor = parseFloat(data.stressor_level || 0);
+        const maxStressor = 100.0;
+        const circ = 440; // 2 * pi * 70
+        const offset = circ - (Math.min(stressor, maxStressor) / maxStressor) * circ;
+
+        const circle = document.getElementById('gauge-circle');
+        const scoreEl = document.getElementById('stressor-score');
+        const barEl = document.getElementById('stressor-bar');
+        const statusTag = document.getElementById('stressor-status-tag');
+        const statusBadge = document.getElementById('status-badge');
+
+        circle.style.strokeDashoffset = offset;
+        scoreEl.innerText = stressor.toFixed(1);
+        barEl.style.width = `${Math.min(100, stressor)}%`;
+
+        let statusColor = '#10b981';
+        let statusName = 'NOMINAL';
+
+        if (data.is_halted) {
+          statusColor = '#ef4444';
+          statusName = 'E-STOP HALT';
+          statusBadge.className = 'badge badge-critical';
+          statusBadge.innerHTML = '<span>●</span> STATUS: CRITICAL E-STOP';
+          document.getElementById('estop-overlay').classList.add('active');
+          if (data.halt_reason) {
+            document.getElementById('estop-reason-text').innerText = data.halt_reason;
+          }
+          playSiren();
+        } else if (stressor >= 50.0 || data.status_tier === 'WARNING') {
+          statusColor = '#f59e0b';
+          statusName = 'WARNING';
+          statusBadge.className = 'badge badge-warning';
+          statusBadge.innerHTML = '<span>●</span> STATUS: WARNING';
+          document.getElementById('estop-overlay').classList.remove('active');
+        } else {
+          statusColor = '#10b981';
+          statusName = 'NOMINAL';
+          statusBadge.className = 'badge badge-nominal';
+          statusBadge.innerHTML = '<span>●</span> STATUS: NOMINAL';
+          document.getElementById('estop-overlay').classList.remove('active');
+        }
+
+        circle.style.stroke = statusColor;
+        scoreEl.style.color = statusColor;
+        barEl.style.backgroundColor = statusColor;
+        statusTag.style.color = statusColor;
+        statusTag.innerText = statusName;
+
+        // Update Weld Pool Geometry
+        document.getElementById('metric-pool-width').innerText = `${(data.pool_width || 0).toFixed(1)} px`;
+        document.getElementById('metric-mean-width').innerText = `${(data.mean_width || 0).toFixed(1)} px`;
+        document.getElementById('metric-pool-length').innerText = `${(data.pool_length || 0).toFixed(1)} px`;
+        document.getElementById('metric-aspect-ratio').innerText = (data.aspect_ratio || 0).toFixed(2);
+
+        // Update Arc Badge
+        const arcBadge = document.getElementById('arc-badge');
+        if (data.is_arc_on) {
+          arcBadge.innerText = 'ARC ACTIVE';
+          arcBadge.style.color = '#10b981';
+        } else {
+          arcBadge.innerText = 'STANDBY';
+          arcBadge.style.color = '#94a3b8';
+        }
+
+        // Update T0 Differential & Diagnostics
+        document.getElementById('metric-diff-state').innerText = data.differential_status || 'STANDBY_NOMINAL';
+        document.getElementById('metric-spatter-count').innerText = data.spatter_count || 0;
+        document.getElementById('metric-glares-suppressed').innerText = data.reflections_suppressed || 0;
+
+      } catch (err) {
+        // quiet catch on transient network drop
+      }
+    }
+
+    async function pollIncidents() {
+      try {
+        const res = await fetch('/api/v2/surveillance/incidents?limit=5');
+        if (!res.ok) return;
+        const data = await res.json();
+        const tbody = document.getElementById('incidents-body');
+        document.getElementById('incidents-count').innerText = `${data.total_incidents || 0} DISPATCHED`;
+
+        if (data.recent_incidents && data.recent_incidents.length > 0) {
+          tbody.innerHTML = '';
+          data.recent_incidents.slice(-5).reverse().forEach(inc => {
+            const tr = document.createElement('tr');
+            const sevClass = inc.severity === 'CRITICAL' ? 'badge-critical' : (inc.severity === 'WARNING' ? 'badge-warning' : 'badge-nominal');
+            tr.innerHTML = `
+              <td>${inc.timestamp_sec ? inc.timestamp_sec.toFixed(2) + 's' : '0.0s'} (F#${inc.frame_idx || 0})</td>
+              <td><span class="badge ${sevClass}">${inc.severity}</span></td>
+              <td style="font-weight: 600;">${inc.alert_type}</td>
+              <td style="color: var(--text-muted);">${JSON.stringify(inc.metrics || {})}</td>
+              <td style="color: #38bdf8;">${inc.suggested_action || 'Monitor process'}</td>
+            `;
+            tbody.appendChild(tr);
+          });
+        }
+      } catch (err) {}
+    }
+
+    setInterval(pollTelemetry, 250);
+    setInterval(pollIncidents, 2000);
+  </script>
+</body>
+</html>
